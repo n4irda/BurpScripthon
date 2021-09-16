@@ -4,6 +4,7 @@ import re
 import time
 import json
 import importlib
+import imp
 
 from burp import IBurpExtender, ITab
 
@@ -74,9 +75,9 @@ class Script(Box):
 
     rexp = '.*'
 
-    def _on_load(self, *args):
+    def _on_load(self, reload=False):
         if exists(SCRIPTS_DIR + '/' + self._s_name.text):
-            self.tab_panel._import_script(self.id, self._s_name.text)
+            self.tab_panel._import_script(self.id, self._s_name.text, reload)
             self.notification_label.text = " "
         else:
             self.notification_label.text = "File not exist."
@@ -97,7 +98,11 @@ class Script(Box):
         self.setBorder(BorderFactory.createEmptyBorder(20, 10, 20, 10))
 
         self.load_btn = JButton('load')
-        self.load_btn.addActionListener(self._on_load)
+        self.load_btn.addActionListener(lambda *x: self._on_load())
+
+        self.rload_btn = JButton("reload")
+        self.rload_btn.addActionListener(lambda *x: self._on_load(reload=True))
+
         self.remove_btn = JButton('Remove')
         self.remove_btn.setBackground(Color(255, 80, 80))
         self.remove_btn.addActionListener(
@@ -118,9 +123,11 @@ class Script(Box):
         script_input.add(self._s_name)
         script_input.add(self.active_btn)
         script_input.add(self.load_btn)
+        script_input.add(self.rload_btn)
+        script_input.add(self.remove_btn)
         script_input.add(Box.createHorizontalGlue())
 
-        self.notification_label = JLabel("")
+        self.notification_label = JLabel(" ")
         self.notification_label.setForeground(Color.RED)
         notification_box = Box.createHorizontalBox()
         notification_box.add(Box.createHorizontalStrut(80))
@@ -128,13 +135,13 @@ class Script(Box):
         notification_box.add(Box.createHorizontalGlue())
 
         self.add(script_input)
-        self.add(notification_box)
         self.add(JSeparator())
+        self.add(notification_box)
 
-        btn_box = Box.createHorizontalBox()
-        btn_box.add(self.remove_btn)
-        btn_box.add(Box.createHorizontalGlue())
-        self.add(btn_box)
+        # btn_box = Box.createHorizontalBox()
+        # btn_box.add(self.remove_btn)
+        # btn_box.add(Box.createHorizontalGlue())
+        # self.add(btn_box)
 
 
 class SettingsPanel(Box):
@@ -358,10 +365,15 @@ class ScriptPanel(JPanel):
     # arguments:
     #   s_id: (int) id of script.
     #   s_name: (str) name of script.
-    def _import_script(self, s_id, s_name):
+    def _import_script(self, s_id, s_name, reload=False):
         if exists(SCRIPTS_DIR + '/' + s_name) and s_name[-3:] == ".py":
             try:
-                self.imports[s_id] = importlib.import_module(s_name.split('.py')[0])
+                if reload:
+                    self.imports[s_id] = imp.reload(self.imports[s_id])
+                else:
+                    self.imports[s_id] = importlib.import_module(
+                        s_name.split('.py')[0]
+                    )
             except ImportError as e:
                 self._error_log.text += str(e) + "\n"
 
@@ -516,9 +528,8 @@ class BurpScripthon:
 
         if isRequest:
             dt = self.bHelpers.analyzeRequest(httpMsg)
-            # rid = len(ss.data["table"]) + 1
-            # self._ids_map[interceptdProxyMessage.messageReference] = rid
-            ss.data["table"][rid] = [rid, dt.getMethod(), str(dt.getUrl())]
+            t_rid = len(ss.data["table"]) + 1
+            ss.data["table"][rid] = [t_rid, dt.getMethod(), str(dt.getUrl())]
 
             # process request with scripts
             for script in self.script_panel.scripts:
@@ -678,13 +689,11 @@ class BurpScripthonTab(ITab):
 class BurpExtender(IBurpExtender):
 
     def registerExtenderCallbacks(self, callbacks):
-        # keep a reference to our callbacks object
+
         self._callbacks = callbacks
 
-        # obtain an extension helpers object
         self._helpers = callbacks.getHelpers()
 
-        # set our extension name
         callbacks.setExtensionName("BurpScripthon")
 
         callbacks.addSuiteTab(BurpScripthonTab(self))

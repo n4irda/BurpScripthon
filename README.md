@@ -42,7 +42,7 @@ they both take two arguments called `HttpMessageInfo` and `extension`.
 ```
 
 - BurpScripthon include a copy of BeautifulSoup4, you can use it in your script with
-`import bs4
+`import bs4`
 
 
 ### Examples.
